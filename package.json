@@ -15,7 +15,8 @@
     "react-hook-form": "^7.43.5",
     "zustand": "^4.3.6",
     "lucide-react": "^0.323.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "openai": "^4.28.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.28",
