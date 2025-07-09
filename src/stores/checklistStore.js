@@ -38,30 +38,42 @@ export const useChecklistStore = create(
         const newChecklist = {
           ...defaultChecklist,
           id,
-          name,
+          name: name.trim(), // Ensure clean name
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
         
-        set(state => ({
-          checklists: [...state.checklists, newChecklist],
-          currentChecklist: newChecklist
-        }))
+        set(state => {
+          // Prevent duplicates
+          const existingIndex = state.checklists.findIndex(c => c.id === id)
+          const updatedChecklists = existingIndex >= 0 
+            ? state.checklists.map((c, i) => i === existingIndex ? newChecklist : c)
+            : [...state.checklists, newChecklist]
+          
+          return {
+            checklists: updatedChecklists,
+            currentChecklist: newChecklist
+          }
+        })
         
         return id
       },
 
       updateChecklist: (id, updates) => {
-        set(state => ({
-          checklists: state.checklists.map(checklist =>
+        set(state => {
+          const updatedChecklists = state.checklists.map(checklist =>
             checklist.id === id
               ? { ...checklist, ...updates, updatedAt: new Date().toISOString() }
               : checklist
-          ),
-          currentChecklist: state.currentChecklist?.id === id
-            ? { ...state.currentChecklist, ...updates, updatedAt: new Date().toISOString() }
-            : state.currentChecklist
-        }))
+          )
+          
+          return {
+            checklists: updatedChecklists,
+            currentChecklist: state.currentChecklist?.id === id
+              ? { ...state.currentChecklist, ...updates, updatedAt: new Date().toISOString() }
+              : state.currentChecklist
+          }
+        })
       },
 
       deleteChecklist: (id) => {
@@ -83,12 +95,14 @@ export const useChecklistStore = create(
 
         const newCategory = {
           id: Date.now().toString(),
-          name,
+          name: name.trim(),
           items: []
         }
 
         const updatedCategories = [...currentChecklist.categories, newCategory]
         get().updateChecklist(currentChecklist.id, { categories: updatedCategories })
+        
+        return newCategory.id
       },
 
       updateCategory: (categoryId, updates) => {
@@ -118,7 +132,8 @@ export const useChecklistStore = create(
 
         const newItem = {
           id: Date.now().toString(),
-          name,
+          name: name.trim(),
+          description: '',
           bulletPoints: [],
           videoUrl: '',
           completed: false

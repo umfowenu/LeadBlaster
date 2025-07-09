@@ -13,9 +13,13 @@ function Dashboard() {
   }
 
   const handleExport = (checklist) => {
-    // This will be implemented in the export functionality
     alert(`Export functionality for "${checklist.name}" will be implemented`)
   }
+
+  // Remove duplicates by filtering unique IDs
+  const uniqueChecklists = checklists.filter((checklist, index, self) => 
+    index === self.findIndex(c => c.id === checklist.id)
+  )
 
   return (
     <div>
@@ -33,7 +37,7 @@ function Dashboard() {
         </Link>
       </div>
 
-      {checklists.length === 0 ? (
+      {uniqueChecklists.length === 0 ? (
         <div className="text-center py-12">
           <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-gray-100">
             <Plus className="h-6 w-6 text-gray-400" />
@@ -50,7 +54,7 @@ function Dashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {checklists.map((checklist) => (
+          {uniqueChecklists.map((checklist) => (
             <div key={checklist.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               {checklist.bannerImage && (
                 <img
@@ -93,8 +97,8 @@ function Dashboard() {
                   <span>Opt-ins: {analytics[checklist.id]?.optIns || 0}</span>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="flex space-x-2">
+                <div className="mt-6 space-y-3">
+                  <div className="flex flex-wrap gap-2">
                     <Link
                       to={`/builder/${checklist.id}`}
                       className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
@@ -117,7 +121,7 @@ function Dashboard() {
                       Analytics
                     </Link>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => handleExport(checklist)}
                       className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
