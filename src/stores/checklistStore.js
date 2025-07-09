@@ -30,6 +30,7 @@ export const useChecklistStore = create(
     (set, get) => ({
       checklists: [],
       currentChecklist: null,
+      tempChecklist: null, // For unsaved new checklists
       analytics: {},
 
       // CRUD operations
@@ -38,13 +39,12 @@ export const useChecklistStore = create(
         const newChecklist = {
           ...defaultChecklist,
           id,
-          name: name.trim(), // Ensure clean name
+          name: name.trim(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
         
         set(state => {
-          // Prevent duplicates
           const existingIndex = state.checklists.findIndex(c => c.id === id)
           const updatedChecklists = existingIndex >= 0 
             ? state.checklists.map((c, i) => i === existingIndex ? newChecklist : c)
@@ -52,14 +52,76 @@ export const useChecklistStore = create(
           
           return {
             checklists: updatedChecklists,
-            currentChecklist: newChecklist
+            currentChecklist: newChecklist,
+            tempChecklist: null
           }
         })
         
         return id
       },
 
+      // Create temporary checklist (not saved to dashboard)
+      createTempChecklist: () => {
+        const id = `temp-${Date.now()}`
+        const tempChecklist = {
+          ...defaultChecklist,
+          id,
+          name: 'Untitled Checklist',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        set({
+          tempChecklist,
+          currentChecklist: tempChecklist
+        })
+        
+        return id
+      },
+
+      // Save temp checklist to permanent storage
+      saveTempChecklist: (updates = {}) => {
+        const { tempChecklist } = get()
+        if (!tempChecklist) return null
+
+        const permanentId = Date.now().toString()
+        const savedChecklist = {
+          ...tempChecklist,
+          ...updates,
+          id: permanentId,
+          updatedAt: new Date().toISOString()
+        }
+
+        set(state => ({
+          checklists: [...state.checklists, savedChecklist],
+          currentChecklist: savedChecklist,
+          tempChecklist: null
+        }))
+
+        return permanentId
+      },
+
+      // Clear temp checklist
+      clearTempChecklist: () => {
+        set({
+          tempChecklist: null,
+          currentChecklist: null
+        })
+      },
+
       updateChecklist: (id, updates) => {
+        const { tempChecklist } = get()
+        
+        // If updating temp checklist
+        if (tempChecklist && tempChecklist.id === id) {
+          set(state => ({
+            tempChecklist: { ...state.tempChecklist, ...updates, updatedAt: new Date().toISOString() },
+            currentChecklist: { ...state.tempChecklist, ...updates, updatedAt: new Date().toISOString() }
+          }))
+          return
+        }
+
+        // Update permanent checklist
         set(state => {
           const updatedChecklists = state.checklists.map(checklist =>
             checklist.id === id
@@ -86,6 +148,12 @@ export const useChecklistStore = create(
       setCurrentChecklist: (id) => {
         const checklist = get().checklists.find(c => c.id === id)
         set({ currentChecklist: checklist || null })
+      },
+
+      // Check if current checklist is temporary/unsaved
+      isCurrentChecklistTemp: () => {
+        const { tempChecklist, currentChecklist } = get()
+        return tempChecklist && currentChecklist && tempChecklist.id === currentChecklist.id
       },
 
       // Category operations

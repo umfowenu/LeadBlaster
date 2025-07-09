@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useChecklistStore } from '../stores/checklistStore'
 import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon } from 'lucide-react'
@@ -9,26 +9,40 @@ import ThemeCustomizer from './ThemeCustomizer'
 function ChecklistBuilder() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { 
     currentChecklist, 
     createChecklist, 
     updateChecklist, 
     setCurrentChecklist,
+    createTempChecklist,
+    saveTempChecklist,
+    clearTempChecklist,
+    isCurrentChecklistTemp,
     checklists 
   } = useChecklistStore()
   
   const [activeTab, setActiveTab] = useState('basic')
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm()
 
+  // Watch form values to detect changes
+  const watchedValues = watch()
+
   useEffect(() => {
-    if (id) {
+    if (id && id !== 'new') {
+      // Editing existing checklist
       setCurrentChecklist(id)
-    } else {
-      // Create new checklist
-      const newId = createChecklist('Untitled Checklist')
-      navigate(`/builder/${newId}`, { replace: true })
+      setHasUnsavedChanges(false)
+      setIsLoading(false)
+    } else if (id === 'new') {
+      // Creating new checklist - create temp checklist
+      createTempChecklist()
+      setHasUnsavedChanges(false)
+      setIsLoading(false)
     }
-  }, [id])
+  }, [id, setCurrentChecklist, createTempChecklist])
 
   useEffect(() => {
     if (currentChecklist) {
@@ -43,10 +57,60 @@ function ChecklistBuilder() {
     }
   }, [currentChecklist, setValue])
 
+  // Track form changes
+  useEffect(() => {
+    if (currentChecklist && isCurrentChecklistTemp()) {
+      const formData = watchedValues
+      const hasChanges = (
+        formData.name !== currentChecklist.name ||
+        formData.description !== currentChecklist.description ||
+        formData.logo !== currentChecklist.logo ||
+        formData.bannerImage !== currentChecklist.bannerImage ||
+        formData.callToActionText !== currentChecklist.callToAction.text ||
+        formData.callToActionLink !== currentChecklist.callToAction.link ||
+        formData.optInEnabled !== currentChecklist.optInEnabled ||
+        formData.optInFormHtml !== currentChecklist.optInFormHtml
+      )
+      setHasUnsavedChanges(hasChanges)
+    }
+  }, [watchedValues, currentChecklist, isCurrentChecklistTemp])
+
+  // Handle navigation away warning
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges && isCurrentChecklistTemp()) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
+    const handlePopState = (e) => {
+      if (hasUnsavedChanges && isCurrentChecklistTemp()) {
+        const confirmLeave = window.confirm(
+          'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.'
+        )
+        if (!confirmLeave) {
+          e.preventDefault()
+          window.history.pushState(null, '', location.pathname)
+        } else {
+          clearTempChecklist()
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [hasUnsavedChanges, isCurrentChecklistTemp, location.pathname, clearTempChecklist])
+
   const onSubmit = (data) => {
     if (!currentChecklist) return
 
-    updateChecklist(currentChecklist.id, {
+    const updates = {
       name: data.name,
       description: data.description,
       logo: data.logo,
@@ -57,40 +121,102 @@ function ChecklistBuilder() {
       },
       optInEnabled: data.optInEnabled,
       optInFormHtml: data.optInFormHtml
-    })
+    }
 
-    alert('Checklist saved successfully!')
+    if (isCurrentChecklistTemp()) {
+      // Save temp checklist as permanent
+      const newId = saveTempChecklist(updates)
+      navigate(`/builder/${newId}`, { replace: true })
+      setHasUnsavedChanges(false)
+      alert('Checklist created successfully!')
+    } else {
+      // Update existing checklist
+      updateChecklist(currentChecklist.id, updates)
+      setHasUnsavedChanges(false)
+      alert('Checklist saved successfully!')
+    }
   }
 
   const handlePreview = () => {
-    if (currentChecklist) {
+    if (currentChecklist && !isCurrentChecklistTemp()) {
       navigate(`/preview/${currentChecklist.id}`)
     }
   }
 
-  if (!currentChecklist) {
-    return <div>Loading...</div>
+  const handleTabChange = (tabId) => {
+    if (hasUnsavedChanges && isCurrentChecklistTemp() && tabId !== 'basic') {
+      const confirmLeave = window.confirm(
+        'You have unsaved changes in the Basic Info tab. Please save your checklist first before accessing other tabs.'
+      )
+      if (!confirmLeave) {
+        return
+      }
+    }
+    setActiveTab(tabId)
   }
 
+  const handleBackToDashboard = () => {
+    if (hasUnsavedChanges && isCurrentChecklistTemp()) {
+      const confirmLeave = window.confirm(
+        'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.'
+      )
+      if (!confirmLeave) {
+        return
+      }
+      clearTempChecklist()
+    }
+    navigate('/')
+  }
+
+  if (isLoading || !currentChecklist) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isTemp = isCurrentChecklistTemp()
   const tabs = [
     { id: 'basic', name: 'Basic Info', icon: Settings },
-    { id: 'categories', name: 'Categories & Items', icon: Plus },
-    { id: 'theme', name: 'Theme', icon: Image }
+    { id: 'categories', name: 'Categories & Items', icon: Plus, disabled: isTemp },
+    { id: 'theme', name: 'Theme', icon: Image, disabled: isTemp }
   ]
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleBackToDashboard}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mt-2">
             {currentChecklist.name || 'Untitled Checklist'}
+            {isTemp && <span className="text-red-500 text-lg ml-2">(Unsaved)</span>}
           </h1>
-          <p className="mt-2 text-gray-600">Build and customize your checklist application</p>
+          <p className="mt-2 text-gray-600">
+            {isTemp ? 'Create your new checklist application' : 'Build and customize your checklist application'}
+          </p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={handlePreview}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            disabled={isTemp}
+            className={`inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+              isTemp 
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                : 'text-gray-700 bg-white hover:bg-gray-50'
+            }`}
           >
             <Eye className="mr-2 h-4 w-4" />
             Preview
@@ -100,23 +226,45 @@ function ChecklistBuilder() {
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
           >
             <Save className="mr-2 h-4 w-4" />
-            Save
+            {isTemp ? 'Create Checklist' : 'Save Changes'}
           </button>
         </div>
       </div>
+
+      {isTemp && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Unsaved Checklist
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  This checklist hasn't been saved yet. Click "Create Checklist" to save it to your dashboard.
+                  Other tabs will be available after saving.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white shadow rounded-lg">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon
+              const isDisabled = tab.disabled
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => !isDisabled && handleTabChange(tab.id)}
+                  disabled={isDisabled}
                   className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
+                      : isDisabled
+                      ? 'border-transparent text-gray-300 cursor-not-allowed'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -246,8 +394,8 @@ function ChecklistBuilder() {
             </form>
           )}
 
-          {activeTab === 'categories' && <CategoryBuilder />}
-          {activeTab === 'theme' && <ThemeCustomizer />}
+          {activeTab === 'categories' && !isTemp && <CategoryBuilder />}
+          {activeTab === 'theme' && !isTemp && <ThemeCustomizer />}
         </div>
       </div>
     </div>
