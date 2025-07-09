@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useChecklistStore } from '../stores/checklistStore'
-import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon } from 'lucide-react'
+import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon, Sparkles } from 'lucide-react'
 import CategoryBuilder from './CategoryBuilder'
 import ThemeCustomizer from './ThemeCustomizer'
+import AIChecklistGenerator from './AIChecklistGenerator'
 
 function ChecklistBuilder() {
   const { id } = useParams()
@@ -25,6 +26,7 @@ function ChecklistBuilder() {
   const [activeTab, setActiveTab] = useState('basic')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [showAIGenerator, setShowAIGenerator] = useState(false)
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm()
 
   // Watch form values to detect changes
@@ -168,6 +170,25 @@ function ChecklistBuilder() {
     navigate('/')
   }
 
+  const handleAIGenerate = (aiData) => {
+    if (!currentChecklist) return
+
+    // Update the current checklist with AI-generated data
+    const updates = {
+      name: aiData.name,
+      description: aiData.description,
+      categories: aiData.categories
+    }
+
+    updateChecklist(currentChecklist.id, updates)
+    
+    // Update form values
+    setValue('name', aiData.name)
+    setValue('description', aiData.description)
+    
+    setHasUnsavedChanges(true)
+  }
+
   if (isLoading || !currentChecklist) {
     return (
       <div className="max-w-6xl mx-auto">
@@ -209,6 +230,13 @@ function ChecklistBuilder() {
           </p>
         </div>
         <div className="flex space-x-3">
+          <button
+            onClick={() => setShowAIGenerator(true)}
+            className="inline-flex items-center px-4 py-2 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate with AI
+          </button>
           <button
             onClick={handlePreview}
             disabled={isTemp}
@@ -398,6 +426,13 @@ function ChecklistBuilder() {
           {activeTab === 'theme' && !isTemp && <ThemeCustomizer />}
         </div>
       </div>
+
+      {showAIGenerator && (
+        <AIChecklistGenerator
+          onGenerate={handleAIGenerate}
+          onClose={() => setShowAIGenerator(false)}
+        />
+      )}
     </div>
   )
 }
