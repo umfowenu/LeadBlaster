@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useChecklistStore } from '../stores/checklistStore'
-import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon, Sparkles } from 'lucide-react'
+import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon, Sparkles, X } from 'lucide-react'
 import CategoryBuilder from './CategoryBuilder'
 import ThemeCustomizer from './ThemeCustomizer'
 import AIChecklistGenerator from './AIChecklistGenerator'
@@ -27,6 +27,7 @@ function ChecklistBuilder() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [showAIGenerator, setShowAIGenerator] = useState(false)
+  const [mediaType, setMediaType] = useState('video') // 'video' or 'image'
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm()
 
   // Watch form values to detect changes
@@ -51,11 +52,21 @@ function ChecklistBuilder() {
       setValue('name', currentChecklist.name)
       setValue('description', currentChecklist.description)
       setValue('logo', currentChecklist.logo)
+      setValue('videoUrl', currentChecklist.videoUrl)
+      setValue('customImage', currentChecklist.customImage)
+      setValue('customImageRedirectUrl', currentChecklist.customImageRedirectUrl)
       setValue('bannerImage', currentChecklist.bannerImage)
       setValue('callToActionText', currentChecklist.callToAction.text)
       setValue('callToActionLink', currentChecklist.callToAction.link)
       setValue('optInEnabled', currentChecklist.optInEnabled)
       setValue('optInFormHtml', currentChecklist.optInFormHtml)
+      
+      // Determine media type based on what's filled
+      if (currentChecklist.customImage) {
+        setMediaType('image')
+      } else if (currentChecklist.videoUrl) {
+        setMediaType('video')
+      }
     }
   }, [currentChecklist, setValue])
 
@@ -67,6 +78,9 @@ function ChecklistBuilder() {
         formData.name !== currentChecklist.name ||
         formData.description !== currentChecklist.description ||
         formData.logo !== currentChecklist.logo ||
+        formData.videoUrl !== currentChecklist.videoUrl ||
+        formData.customImage !== currentChecklist.customImage ||
+        formData.customImageRedirectUrl !== currentChecklist.customImageRedirectUrl ||
         formData.bannerImage !== currentChecklist.bannerImage ||
         formData.callToActionText !== currentChecklist.callToAction.text ||
         formData.callToActionLink !== currentChecklist.callToAction.link ||
@@ -116,6 +130,9 @@ function ChecklistBuilder() {
       name: data.name,
       description: data.description,
       logo: data.logo,
+      videoUrl: mediaType === 'video' ? data.videoUrl : '',
+      customImage: mediaType === 'image' ? data.customImage : '',
+      customImageRedirectUrl: mediaType === 'image' ? data.customImageRedirectUrl : '',
       bannerImage: data.bannerImage,
       callToAction: {
         text: data.callToActionText,
@@ -187,6 +204,83 @@ function ChecklistBuilder() {
     setValue('description', aiData.description)
     
     setHasUnsavedChanges(true)
+  }
+
+  const getVideoInfo = (url) => {
+    if (!url) return null
+    
+    // YouTube - handle both youtube.com and youtu.be URLs
+    const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)
+    if (youtubeMatch) {
+      const videoId = youtubeMatch[1]
+      return {
+        type: 'youtube',
+        id: videoId,
+        thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+        originalUrl: `https://www.youtube.com/watch?v=${videoId}`
+      }
+    }
+    
+    // Vimeo
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/)
+    if (vimeoMatch) {
+      return {
+        type: 'vimeo',
+        id: vimeoMatch[1],
+        originalUrl: url
+      }
+    }
+    
+    return {
+      type: 'other',
+      originalUrl: url
+    }
+  }
+
+  const MediaPreview = () => {
+    if (mediaType === 'video' && watch('videoUrl')) {
+      const videoInfo = getVideoInfo(watch('videoUrl'))
+      if (videoInfo && videoInfo.type === 'youtube') {
+        return (
+          <div className="mt-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+            <div className="max-w-sm">
+              <img
+                src={videoInfo.thumbnail}
+                alt="Video thumbnail"
+                className="w-full h-24 object-cover rounded border"
+                onError={(e) => {
+                  e.target.src = `https://img.youtube.com/vi/${videoInfo.id}/hqdefault.jpg`
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Thumbnail will be displayed in checklist with "Watch on YouTube" button
+              </p>
+            </div>
+          </div>
+        )
+      }
+    } else if (mediaType === 'image' && watch('customImage')) {
+      return (
+        <div className="mt-3">
+          <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+          <div className="max-w-sm">
+            <img
+              src={watch('customImage')}
+              alt="Custom image preview"
+              className="w-full h-24 object-cover rounded border"
+              onError={(e) => {
+                e.target.style.display = 'none'
+              }}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Image will be clickable in extension{watch('customImageRedirectUrl') ? ` and redirect to: ${watch('customImageRedirectUrl')}` : ''}
+            </p>
+          </div>
+        </div>
+      )
+    }
+    return null
   }
 
   if (isLoading || !currentChecklist) {
@@ -348,16 +442,127 @@ function ChecklistBuilder() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Banner Image URL
-                </label>
-                <input
-                  {...register('bannerImage')}
-                  type="url"
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="https://example.com/banner.jpg"
-                />
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <Image className="mr-2 h-5 w-5" />
+                  Media Content
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Media Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Choose Media Type
+                    </label>
+                    <div className="flex space-x-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          value="video"
+                          checked={mediaType === 'video'}
+                          onChange={(e) => setMediaType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">Video (YouTube/Vimeo)</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          value="image"
+                          checked={mediaType === 'image'}
+                          onChange={(e) => setMediaType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">Custom Image</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Video URL Input */}
+                  {mediaType === 'video' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Video URL (YouTube or Vimeo)
+                      </label>
+                      <input
+                        {...register('videoUrl')}
+                        type="url"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Video thumbnail will appear in the "What is {currentChecklist.name}?" dropdown with a "Watch on YouTube" button
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Custom Image Inputs */}
+                  {mediaType === 'image' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Image URL
+                        </label>
+                        <input
+                          {...register('customImage')}
+                          type="url"
+                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          placeholder="https://example.com/image.jpg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Redirect URL (when image is clicked)
+                        </label>
+                        <input
+                          {...register('customImageRedirectUrl')}
+                          type="url"
+                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          placeholder="https://example.com/landing-page"
+                        />
+                        <p className="mt-1 text-sm text-gray-500">
+                          When users click the image in the extension, they'll be redirected to this URL
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Media Preview */}
+                  <MediaPreview />
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Banner Image</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Banner Image URL
+                  </label>
+                  <input
+                    {...register('bannerImage')}
+                    type="url"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="https://example.com/banner.jpg"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Banner image for branding and visual appeal
+                  </p>
+                  
+                  {/* Banner Image Preview */}
+                  {watch('bannerImage') && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                      <img
+                        src={watch('bannerImage')}
+                        alt="Banner preview"
+                        className="max-w-sm h-24 object-cover rounded border"
+                        onError={(e) => {
+                          e.target.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="border-t pt-6">

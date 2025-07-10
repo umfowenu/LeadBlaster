@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useChecklistStore } from '../stores/checklistStore'
 import { Plus, Edit, Eye, BarChart3, Trash2, Download } from 'lucide-react'
+import ExportModal from './ExportModal'
 
 function Dashboard() {
   const { checklists, deleteChecklist, analytics } = useChecklistStore()
+  const [exportingChecklist, setExportingChecklist] = useState(null)
 
   const handleDelete = (id, name) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
@@ -13,7 +15,7 @@ function Dashboard() {
   }
 
   const handleExport = (checklist) => {
-    alert(`Export functionality for "${checklist.name}" will be implemented`)
+    setExportingChecklist(checklist)
   }
 
   // Remove duplicates by filtering unique IDs
@@ -142,6 +144,13 @@ function Dashboard() {
             </div>
           ))}
         </div>
+      )}
+
+      {exportingChecklist && (
+        <ExportModal
+          checklist={exportingChecklist}
+          onClose={() => setExportingChecklist(null)}
+        />
       )}
     </div>
   )
