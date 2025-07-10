@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useChecklistStore } from '../stores/checklistStore'
-import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon, Sparkles, X } from 'lucide-react'
+import { Save, Eye, Plus, Trash2, Settings, Image, Video, Link as LinkIcon, Sparkles, X, Info } from 'lucide-react'
 import CategoryBuilder from './CategoryBuilder'
 import ThemeCustomizer from './ThemeCustomizer'
 import AIChecklistGenerator from './AIChecklistGenerator'
@@ -216,7 +216,7 @@ function ChecklistBuilder() {
       return {
         type: 'youtube',
         id: videoId,
-        thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+        thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
         originalUrl: `https://www.youtube.com/watch?v=${videoId}`
       }
     }
@@ -242,19 +242,37 @@ function ChecklistBuilder() {
       const videoInfo = getVideoInfo(watch('videoUrl'))
       if (videoInfo && videoInfo.type === 'youtube') {
         return (
-          <div className="mt-3">
-            <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-            <div className="max-w-sm">
-              <img
-                src={videoInfo.thumbnail}
-                alt="Video thumbnail"
-                className="w-full h-24 object-cover rounded border"
-                onError={(e) => {
-                  e.target.src = `https://img.youtube.com/vi/${videoInfo.id}/hqdefault.jpg`
-                }}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Thumbnail will be displayed in checklist with "Watch on YouTube" button
+          <div className="mt-4">
+            <p className="text-sm font-medium text-gray-700 mb-3">Preview:</p>
+            <div className="max-w-md">
+              <div className="relative">
+                <img
+                  src={videoInfo.thumbnail}
+                  alt="Video thumbnail"
+                  className="w-full h-64 object-cover rounded border"
+                  onError={(e) => {
+                    if (e.target.src.includes('maxresdefault')) {
+                      e.target.src = `https://img.youtube.com/vi/${videoInfo.id}/hqdefault.jpg`
+                    } else if (e.target.src.includes('hqdefault')) {
+                      e.target.src = `https://img.youtube.com/vi/${videoInfo.id}/mqdefault.jpg`
+                    }
+                  }}
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center rounded">
+                  <div className="bg-red-600 rounded-full p-4">
+                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <div className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded text-sm">
+                  WATCH ON YOUTUBE
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                This is how the thumbnail will appear in the extension with play button overlay
               </p>
             </div>
           </div>
@@ -262,18 +280,18 @@ function ChecklistBuilder() {
       }
     } else if (mediaType === 'image' && watch('customImage')) {
       return (
-        <div className="mt-3">
-          <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-          <div className="max-w-sm">
+        <div className="mt-4">
+          <p className="text-sm font-medium text-gray-700 mb-3">Preview:</p>
+          <div className="max-w-md">
             <img
               src={watch('customImage')}
               alt="Custom image preview"
-              className="w-full h-24 object-cover rounded border"
+              className="w-full h-64 object-cover rounded border"
               onError={(e) => {
                 e.target.style.display = 'none'
               }}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-3 text-center">
               Image will be clickable in extension{watch('customImageRedirectUrl') ? ` and redirect to: ${watch('customImageRedirectUrl')}` : ''}
             </p>
           </div>
@@ -427,6 +445,10 @@ function ChecklistBuilder() {
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="https://example.com/logo.png"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    <Info className="inline w-3 h-3 mr-1" />
+                    Recommended: 32×32px square logo for best display
+                  </p>
                 </div>
               </div>
 
@@ -448,7 +470,7 @@ function ChecklistBuilder() {
                   Media Content
                 </h3>
                 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {/* Media Type Selection */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -509,6 +531,12 @@ function ChecklistBuilder() {
                           className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           placeholder="https://example.com/image.jpg"
                         />
+                        <div className="mt-1 flex items-start space-x-1 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong>Recommended dimensions:</strong> 400×225px (16:9 aspect ratio) for optimal display in the extension dropdown
+                          </div>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700">
@@ -544,18 +572,21 @@ function ChecklistBuilder() {
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="https://example.com/banner.jpg"
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Banner image for branding and visual appeal
-                  </p>
+                  <div className="mt-1 flex items-start space-x-1 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                    <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <strong>Recommended dimensions:</strong> 400×100px (4:1 aspect ratio) for banner display. Used for branding and visual appeal.
+                    </div>
+                  </div>
                   
                   {/* Banner Image Preview */}
                   {watch('bannerImage') && (
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-3">Preview:</p>
                       <img
                         src={watch('bannerImage')}
                         alt="Banner preview"
-                        className="max-w-sm h-24 object-cover rounded border"
+                        className="max-w-md h-24 object-cover rounded border"
                         onError={(e) => {
                           e.target.style.display = 'none'
                         }}
